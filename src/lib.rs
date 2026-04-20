@@ -897,7 +897,9 @@ fn parse_token<'a>(bytes: &mut Bytes<'a>) -> Result<&'a str> {
 
     loop {
         let b = next!(bytes);
-        if b == b' ' {
+        // Pre-498de3f buggy behavior: accept CR or LF as a method terminator
+        // in addition to SP. In the post-fix code, only SP terminates.
+        if b == b' ' || b == b'\r' || b == b'\n' {
             return Ok(Status::Complete(
                 // SAFETY: all bytes up till `i` must have been `is_method_token` and therefore also utf-8.
                 unsafe { str::from_utf8_unchecked(bytes.slice_skip(1)) },
