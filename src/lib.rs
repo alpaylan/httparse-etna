@@ -698,10 +698,7 @@ impl<'h, 'b> Response<'h, 'b> {
                 bytes.slice();
                 self.reason = Some("");
             },
-            b'\n' => {
-                bytes.slice();
-                self.reason = Some("");
-            }
+            b'\n' => self.reason = Some(""),
             _ => return Err(Error::Status),
         }
 
