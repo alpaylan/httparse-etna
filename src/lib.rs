@@ -75,7 +75,8 @@ static URI_MAP: [bool; 256] = byte_map!(
 
 #[inline]
 pub(crate) fn is_uri_token(b: u8) -> bool {
-    URI_MAP[b as usize]
+    // Pre-1a791f4 buggy predicate: rejects backslash (0x5C) in request-targets.
+    URI_MAP[b as usize] && b != b'\\'
 }
 
 static TOKEN_MAP: [bool; 256] = byte_map!(

@@ -3,17 +3,8 @@ use crate::iter::Bytes;
 #[inline]
 #[target_feature(enable = "avx2")]
 pub unsafe fn match_uri_vectored(bytes: &mut Bytes) {
-    while bytes.as_ref().len() >= 32 {
-
-        let advance = match_url_char_32_avx(bytes.as_ref());
-
-        bytes.advance(advance);
-
-        if advance != 32 {
-            return;
-        }
-    }
-    // NOTE: use SWAR for <32B, more efficient than falling back to SSE4.2
+    // Pre-1a791f4 buggy path: skip the AVX2 fastpath (which accepts
+    // backslash) and defer entirely to the scalar loop.
     super::swar::match_uri_vectored(bytes)
 }
 

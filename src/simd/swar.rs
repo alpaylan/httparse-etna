@@ -8,18 +8,9 @@ type ByteBlock = [u8; BLOCK_SIZE];
 
 #[inline]
 pub fn match_uri_vectored(bytes: &mut Bytes) {
+    // Pre-1a791f4 buggy path: skip the block-wise fastpath so the scalar
+    // `is_uri_token` (which now rejects backslash) gates every byte.
     loop {
-        if let Some(bytes8) = bytes.peek_n::<ByteBlock>(BLOCK_SIZE) {
-            let n = match_uri_char_8_swar(bytes8);
-            // SAFETY: using peek_n to retrieve the bytes ensures that there are at least n more bytes
-            // in `bytes`, so calling `advance(n)` is safe.
-            unsafe {
-                bytes.advance(n);
-            }
-            if n == BLOCK_SIZE {
-                continue;
-            }
-        }
         if let Some(b) = bytes.peek() {
             if is_uri_token(b) {
                 // SAFETY: using peek to retrieve the byte ensures that there is at least 1 more byte
@@ -111,6 +102,7 @@ const fn uniform_block(b: u8) -> usize {
 // A byte-wise range-check on an entire word/block,
 // ensuring all bytes in the word satisfy `33 <= (x != 127) <= 255`
 #[inline]
+#[allow(dead_code)]
 fn match_uri_char_8_swar(block: ByteBlock) -> usize {
     // 33 <= (x != 127) <= 255
     const M: u8 = 0x21;

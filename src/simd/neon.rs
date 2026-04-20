@@ -35,17 +35,9 @@ pub fn match_header_value_vectored(bytes: &mut Bytes) {
 
 #[inline]
 pub fn match_uri_vectored(bytes: &mut Bytes) {
-    while bytes.as_ref().len() >= 16 {
-        // SAFETY: ensured that there are at least 16 bytes remaining 
-        unsafe {
-            let advance = match_url_char_16_neon(bytes.as_ref().as_ptr());
-            bytes.advance(advance);
-
-            if advance != 16 {
-                return;
-            }
-        }
-    }
+    // Pre-1a791f4 buggy path: skip the NEON fastpath (which accepts
+    // backslash) and defer entirely to the scalar loop in swar, whose
+    // `is_uri_token` check now rejects backslash.
     super::swar::match_uri_vectored(bytes);
 }
 
@@ -122,6 +114,7 @@ unsafe fn match_header_name_char_16_neon(ptr: *const u8) -> usize {
 }
 
 #[inline]
+#[allow(dead_code)]
 unsafe fn match_url_char_16_neon(ptr: *const u8) -> usize {
     let input = vld1q_u8(ptr);
 

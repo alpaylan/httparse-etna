@@ -2,20 +2,14 @@ use crate::iter::Bytes;
 
 #[target_feature(enable = "sse4.2")]
 pub unsafe fn match_uri_vectored(bytes: &mut Bytes) {
-    while bytes.as_ref().len() >= 16 {
-        let advance = match_url_char_16_sse(bytes.as_ref());
-
-        bytes.advance(advance);
-
-        if advance != 16 {
-            return;
-        }
-    }
+    // Pre-1a791f4 buggy path: skip the SSE fastpath (which accepts
+    // backslash) and defer entirely to the scalar loop.
     super::swar::match_uri_vectored(bytes);
 }
 
 #[inline(always)]
 #[allow(non_snake_case)]
+#[allow(dead_code)]
 unsafe fn match_url_char_16_sse(buf: &[u8]) -> usize {
     debug_assert!(buf.len() >= 16);
 
