@@ -91,7 +91,8 @@ pub(crate) fn is_header_name_token(b: u8) -> bool {
 
 
 static HEADER_VALUE_MAP: [bool; 256] = byte_map!(
-    b'\t' | b' '..=0x7e | 0x80..=0xFF
+    // Pre-59a9fd1 buggy map: HTAB (0x09) is rejected by header-value parsing.
+    b' '..=0x7e | 0x80..=0xFF
 );
 
 
