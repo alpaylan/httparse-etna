@@ -59,11 +59,9 @@ pub mod _benchable {
 /// > ```
 #[inline]
 fn is_method_token(b: u8) -> bool {
-    match b {
-        // For the majority case, this can be faster than the table lookup.
-        b'A'..=b'Z' => true,
-        _ => TOKEN_MAP[b as usize],
-    }
+    // Buggy predicate from pre-9f6702b: accepts any byte in (0x1F, 0x7F),
+    // including SP (0x20), which lets a leading space through parse_token.
+    b > 0x1F && b < 0x7F
 }
 
 // char codes to accept URI string.
