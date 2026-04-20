@@ -1,0 +1,48 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index 97cb8d4..2cb52e9 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1268,38 +1268,19 @@ pub fn parse_chunk_size(buf: &[u8])
+     -> result::Result<Status<(usize, u64)>, InvalidChunkSize> {
+     const RADIX: u64 = 16;
+     let mut bytes = Bytes::new(buf);
+-    let mut size = 0;
++    let mut size: u64 = 0;
+     let mut in_chunk_size = true;
+     let mut in_ext = false;
+-    let mut count = 0;
+     loop {
+         let b = next!(bytes);
+         match b {
+             b'0' ..= b'9' if in_chunk_size => {
+-                if count > 15 {
+-                    return Err(InvalidChunkSize);
+-                }
+-                count += 1;
+-                if cfg!(debug_assertions) && size > (u64::MAX / RADIX) {
+-                    // actually unreachable!(), because count stops the loop at 15 digits before
+-                    // we can reach u64::MAX / RADIX == 0xfffffffffffffff, which requires 15 hex
+-                    // digits. This stops mirai reporting a false alarm regarding the `size *=
+-                    // RADIX` multiplication below.
+-                    return Err(InvalidChunkSize);
+-                }
+-                size *= RADIX;
+-                size += (b - b'0') as u64;
++                size = size.wrapping_mul(RADIX);
++                size = size.wrapping_add((b - b'0') as u64);
+             },
+             b'a' ..= b'f' | b'A' ..= b'F' if in_chunk_size => {
+-                if count > 15 {
+-                    return Err(InvalidChunkSize);
+-                }
+-                count += 1;
+-                if cfg!(debug_assertions) && size > (u64::MAX / RADIX) {
+-                    return Err(InvalidChunkSize);
+-                }
+-                size *= RADIX;
+-                size += ((b | 0x20) + 10 - b'a') as u64;
++                size = size.wrapping_mul(RADIX);
++                size = size.wrapping_add(((b | 0x20) + 10 - b'a') as u64);
+             }
+             b'\r' => {
+                 match next!(bytes) {

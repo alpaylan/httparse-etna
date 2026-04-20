@@ -88,6 +88,12 @@ fn canonical_method_leading_space() -> (Vec<u8>, u8) {
     (vec![b' ', b'G', b'E', b'T'], b' ')
 }
 
+// invalid_token_delim_498de3f_1: the buggy parse_token accepts CR as a method
+// terminator; the fix rejects it.
+fn canonical_method_cr_delim() -> (Vec<u8>, u8) {
+    (b"GET".to_vec(), b'\r')
+}
+
 // header_value_htab_59a9fd1_1: a tab in the middle of the header value is
 // rejected by the buggy HEADER_VALUE_MAP.
 fn canonical_header_value_with_tab() -> Vec<u8> {
@@ -113,8 +119,13 @@ fn canonical_response_no_reason() -> Vec<u8> {
 }
 
 fn check_request_method_is_valid() -> Result<(), String> {
-    let (method, sep) = canonical_method_leading_space();
-    to_err(property_request_method_is_valid(method, sep))
+    // Replay both canonical witnesses — one per method-parsing bug that this
+    // property catches (method_leading_space_9f6702b_1 and
+    // invalid_token_delim_498de3f_1). If either trips, the property fails.
+    let (m1, s1) = canonical_method_leading_space();
+    to_err(property_request_method_is_valid(m1, s1))?;
+    let (m2, s2) = canonical_method_cr_delim();
+    to_err(property_request_method_is_valid(m2, s2))
 }
 
 fn check_request_header_value_preserves() -> Result<(), String> {

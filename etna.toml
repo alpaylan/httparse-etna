@@ -1,0 +1,85 @@
+# ETNA workload index for httparse.
+#
+# One [[variant]] per injected mutation. Source of truth for variant -> property
+# mapping. Every other fact is derivable from the source tree:
+#   - ls patches/*.patch                       (patch-based variants)
+#   - grep -rn "pub fn property_" src/etna.rs  (property functions)
+#   - grep -rn "fn witness_.*_case_" tests/    (witness tests)
+#
+# Base commit for this workload is HEAD of master on this tree. Every
+# etna/<variant> branch is master + exactly one patch applied on top.
+
+name = "httparse"
+language = "Rust"
+
+[[variant]]
+name = "chunk_size_overflow_34efc1e_1"
+property = "ChunkSizeMatchesOracle"
+injection = "patch"
+patch = "patches/chunk_size_overflow_34efc1e_1.patch"
+source_commit = "34efc1e39726d7f8d3afe34e2b44d2eebb6ba952"
+witnesses = [
+    "witness_chunk_size_matches_oracle_case_overflow_17",
+]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/lib.rs"]
+
+[[variant]]
+name = "method_leading_space_9f6702b_1"
+property = "RequestMethodIsValid"
+injection = "patch"
+patch = "patches/method_leading_space_9f6702b_1.patch"
+source_commit = "9f6702be571b19ac84e19678b0c4f7eefd2a11b7"
+witnesses = [
+    "witness_request_method_is_valid_case_leading_space",
+]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/lib.rs"]
+
+[[variant]]
+name = "invalid_token_delim_498de3f_1"
+property = "RequestMethodIsValid"
+injection = "patch"
+patch = "patches/invalid_token_delim_498de3f_1.patch"
+source_commit = "498de3fa707a4889395850e88e8260261258bbd2"
+witnesses = [
+    "witness_request_method_is_valid_case_cr_delim",
+]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/lib.rs"]
+
+[[variant]]
+name = "header_value_htab_59a9fd1_1"
+property = "RequestHeaderValuePreserves"
+injection = "patch"
+patch = "patches/header_value_htab_59a9fd1_1.patch"
+source_commit = "59a9fd11b3023581055b4997ff21829e03e909a2"
+witnesses = [
+    "witness_request_header_value_preserves_case_htab",
+]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/lib.rs"]
+
+[[variant]]
+name = "backslash_in_uri_1a791f4_1"
+property = "RequestPathPreserves"
+injection = "patch"
+patch = "patches/backslash_in_uri_1a791f4_1.patch"
+source_commit = "1a791f4eee2dbb4e51f5211195a6f14da9aa5c12"
+witnesses = [
+    "witness_request_path_preserves_case_backslash",
+]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/lib.rs", "src/simd/swar.rs", "src/simd/neon.rs", "src/simd/sse42.rs", "src/simd/avx2.rs"]
+
+[[variant]]
+name = "response_no_reason_c0631f2_1"
+property = "ResponseHeaderNamesAreTokens"
+injection = "patch"
+patch = "patches/response_no_reason_c0631f2_1.patch"
+source_commit = "c0631f26e86157a8110a202c112b0ea7a051025b"
+witnesses = [
+    "witness_response_header_names_are_tokens_case_bare_lf",
+]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/lib.rs"]

@@ -1,0 +1,132 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index 97cb8d4..50b5700 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -75,7 +75,8 @@ static URI_MAP: [bool; 256] = byte_map!(
+ 
+ #[inline]
+ pub(crate) fn is_uri_token(b: u8) -> bool {
+-    URI_MAP[b as usize]
++    // Pre-1a791f4 buggy predicate: rejects backslash (0x5C) in request-targets.
++    URI_MAP[b as usize] && b != b'\\'
+ }
+ 
+ static TOKEN_MAP: [bool; 256] = byte_map!(
+diff --git a/src/simd/avx2.rs b/src/simd/avx2.rs
+index 8cb292c..d2b3362 100644
+--- a/src/simd/avx2.rs
++++ b/src/simd/avx2.rs
+@@ -3,17 +3,8 @@ use crate::iter::Bytes;
+ #[inline]
+ #[target_feature(enable = "avx2")]
+ pub unsafe fn match_uri_vectored(bytes: &mut Bytes) {
+-    while bytes.as_ref().len() >= 32 {
+-
+-        let advance = match_url_char_32_avx(bytes.as_ref());
+-
+-        bytes.advance(advance);
+-
+-        if advance != 32 {
+-            return;
+-        }
+-    }
+-    // NOTE: use SWAR for <32B, more efficient than falling back to SSE4.2
++    // Pre-1a791f4 buggy path: skip the AVX2 fastpath (which accepts
++    // backslash) and defer entirely to the scalar loop.
+     super::swar::match_uri_vectored(bytes)
+ }
+ 
+diff --git a/src/simd/neon.rs b/src/simd/neon.rs
+index 2994a57..5fc9e64 100644
+--- a/src/simd/neon.rs
++++ b/src/simd/neon.rs
+@@ -35,17 +35,9 @@ pub fn match_header_value_vectored(bytes: &mut Bytes) {
+ 
+ #[inline]
+ pub fn match_uri_vectored(bytes: &mut Bytes) {
+-    while bytes.as_ref().len() >= 16 {
+-        // SAFETY: ensured that there are at least 16 bytes remaining 
+-        unsafe {
+-            let advance = match_url_char_16_neon(bytes.as_ref().as_ptr());
+-            bytes.advance(advance);
+-
+-            if advance != 16 {
+-                return;
+-            }
+-        }
+-    }
++    // Pre-1a791f4 buggy path: skip the NEON fastpath (which accepts
++    // backslash) and defer entirely to the scalar loop in swar, whose
++    // `is_uri_token` check now rejects backslash.
+     super::swar::match_uri_vectored(bytes);
+ }
+ 
+@@ -122,6 +114,7 @@ unsafe fn match_header_name_char_16_neon(ptr: *const u8) -> usize {
+ }
+ 
+ #[inline]
++#[allow(dead_code)]
+ unsafe fn match_url_char_16_neon(ptr: *const u8) -> usize {
+     let input = vld1q_u8(ptr);
+ 
+diff --git a/src/simd/sse42.rs b/src/simd/sse42.rs
+index 8dd438b..5fe463a 100644
+--- a/src/simd/sse42.rs
++++ b/src/simd/sse42.rs
+@@ -2,20 +2,14 @@ use crate::iter::Bytes;
+ 
+ #[target_feature(enable = "sse4.2")]
+ pub unsafe fn match_uri_vectored(bytes: &mut Bytes) {
+-    while bytes.as_ref().len() >= 16 {
+-        let advance = match_url_char_16_sse(bytes.as_ref());
+-
+-        bytes.advance(advance);
+-
+-        if advance != 16 {
+-            return;
+-        }
+-    }
++    // Pre-1a791f4 buggy path: skip the SSE fastpath (which accepts
++    // backslash) and defer entirely to the scalar loop.
+     super::swar::match_uri_vectored(bytes);
+ }
+ 
+ #[inline(always)]
+ #[allow(non_snake_case)]
++#[allow(dead_code)]
+ unsafe fn match_url_char_16_sse(buf: &[u8]) -> usize {
+     debug_assert!(buf.len() >= 16);
+ 
+diff --git a/src/simd/swar.rs b/src/simd/swar.rs
+index ef7435f..4eb076a 100644
+--- a/src/simd/swar.rs
++++ b/src/simd/swar.rs
+@@ -8,18 +8,9 @@ type ByteBlock = [u8; BLOCK_SIZE];
+ 
+ #[inline]
+ pub fn match_uri_vectored(bytes: &mut Bytes) {
++    // Pre-1a791f4 buggy path: skip the block-wise fastpath so the scalar
++    // `is_uri_token` (which now rejects backslash) gates every byte.
+     loop {
+-        if let Some(bytes8) = bytes.peek_n::<ByteBlock>(BLOCK_SIZE) {
+-            let n = match_uri_char_8_swar(bytes8);
+-            // SAFETY: using peek_n to retrieve the bytes ensures that there are at least n more bytes
+-            // in `bytes`, so calling `advance(n)` is safe.
+-            unsafe {
+-                bytes.advance(n);
+-            }
+-            if n == BLOCK_SIZE {
+-                continue;
+-            }
+-        }
+         if let Some(b) = bytes.peek() {
+             if is_uri_token(b) {
+                 // SAFETY: using peek to retrieve the byte ensures that there is at least 1 more byte
+@@ -111,6 +102,7 @@ const fn uniform_block(b: u8) -> usize {
+ // A byte-wise range-check on an entire word/block,
+ // ensuring all bytes in the word satisfy `33 <= (x != 127) <= 255`
+ #[inline]
++#[allow(dead_code)]
+ fn match_uri_char_8_swar(block: ByteBlock) -> usize {
+     // 33 <= (x != 127) <= 255
+     const M: u8 = 0x21;
