@@ -34,6 +34,9 @@ mod iter;
 #[macro_use] mod macros;
 mod simd;
 
+#[cfg(feature = "std")]
+pub mod etna;
+
 #[doc(hidden)]
 // Expose some internal functions so we can bench them individually
 // WARNING: Exported for internal benchmarks, not fit for public consumption
