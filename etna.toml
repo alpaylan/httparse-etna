@@ -1,85 +1,168 @@
-# ETNA workload index for httparse.
-#
-# One [[variant]] per injected mutation. Source of truth for variant -> property
-# mapping. Every other fact is derivable from the source tree:
-#   - ls patches/*.patch                       (patch-based variants)
-#   - grep -rn "pub fn property_" src/etna.rs  (property functions)
-#   - grep -rn "fn witness_.*_case_" tests/    (witness tests)
-#
-# Base commit for this workload is HEAD of master on this tree. Every
-# etna/<variant> branch is master + exactly one patch applied on top.
-
 name = "httparse"
-language = "Rust"
+language = "rust"
+crate = "httparse"
+base_commit = "7d7da9d441de9af10639b4835fc3ec6d643c7903"
 
-[[variant]]
-name = "chunk_size_overflow_34efc1e_1"
-property = "ChunkSizeMatchesOracle"
-injection = "patch"
+[[tasks]]
+mutations = ["chunk_size_overflow_34efc1e_1"]
+
+[tasks.source]
+repo = "https://github.com/seanmonstar/httparse"
+commits = ["34efc1e39726d7f8d3afe34e2b44d2eebb6ba952"]
+commit_subjects = ["fix u64 overflow if chunk size is too big"]
+summary = "`parse_chunk_size` accumulated digits into a `u64` with plain `*` / `+`, so a 17-hex-digit chunk size (i.e. ≥ 2^64) silently wrapped and the parser returned `Ok(Complete)` on a value it couldn't actually represent. The fix adds a `count > 15` guard that returns `InvalidChunkSize` before the overflow can happen."
+
+[tasks.injection]
+kind = "patch"
+files = ["src/lib.rs"]
+locations = [{ file = "src/lib.rs" }]
 patch = "patches/chunk_size_overflow_34efc1e_1.patch"
-source_commit = "34efc1e39726d7f8d3afe34e2b44d2eebb6ba952"
-witnesses = [
-    "witness_chunk_size_matches_oracle_case_overflow_17",
-]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
-files = ["src/lib.rs"]
 
-[[variant]]
-name = "method_leading_space_9f6702b_1"
-property = "RequestMethodIsValid"
-injection = "patch"
+[tasks.bug]
+short_name = "chunk_size_overflow"
+invariant = "For hex-digit input, the parser's result must agree with a big-integer (u128) oracle; in particular, any input with 17+ hex digits must return `InvalidChunkSize` because the value cannot fit in u64."
+how_triggered = """
+The buggy `parse_chunk_size` drops the `count > 15` guard and the debug-assert, and switches to `wrapping_mul`/`wrapping_add`, so `"10000000000000000"` (17 hex digits → 2^64) wraps to 0 and returns `Ok(Complete)` instead of `Err(InvalidChunkSize)`.
+"""
+
+[[tasks.tasks]]
+property = "ChunkSizeMatchesOracle"
+witnesses = [
+  { test_fn = "witness_chunk_size_matches_oracle_case_overflow_17" },
+]
+
+[[tasks]]
+mutations = ["method_leading_space_9f6702b_1"]
+
+[tasks.source]
+repo = "https://github.com/seanmonstar/httparse"
+commits = ["9f6702be571b19ac84e19678b0c4f7eefd2a11b7"]
+commit_subjects = ["Fix method parsing to reject a leading space (#190)"]
+summary = "`is_method_token` was implemented as `b > 0x1F && b < 0x7F`, which admits `0x20` (SP). A request line like `\" GET / HTTP/1.1\"` therefore parsed as method `\" GET\"` instead of erroring. The fix swaps to the strict HTTP tchar check so SP is rejected."
+
+[tasks.injection]
+kind = "patch"
+files = ["src/lib.rs"]
+locations = [{ file = "src/lib.rs" }]
 patch = "patches/method_leading_space_9f6702b_1.patch"
-source_commit = "9f6702be571b19ac84e19678b0c4f7eefd2a11b7"
-witnesses = [
-    "witness_request_method_is_valid_case_leading_space",
-]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
-files = ["src/lib.rs"]
 
-[[variant]]
-name = "invalid_token_delim_498de3f_1"
+[tasks.bug]
+short_name = "method_leading_space"
+invariant = "Parsing `{method} / HTTP/1.1\\r\\n\\r\\n` succeeds iff `method` is a non-empty valid HTTP token. A leading SP is not a token byte and must be rejected."
+how_triggered = """
+The buggy `is_method_token` is the pre-fix `b > 0x1F && b < 0x7F`, which admits SP. The parser happily accepts a method of `" GET"` whose first byte is SP — the property expects an error and fails.
+"""
+
+[[tasks.tasks]]
 property = "RequestMethodIsValid"
-injection = "patch"
+witnesses = [
+  { test_fn = "witness_request_method_is_valid_case_leading_space" },
+]
+
+[[tasks]]
+mutations = ["invalid_token_delim_498de3f_1"]
+
+[tasks.source]
+repo = "https://github.com/seanmonstar/httparse"
+commits = ["498de3fa707a4889395850e88e8260261258bbd2"]
+commit_subjects = ["stop parsing requests with invalid method or path delimiters"]
+summary = "`parse_token` terminated on SP, CR, or LF, so `\"GET\\r / HTTP/1.1\"` parsed successfully with method `\"GET\"` even though the method/path boundary must be a single SP. The fix restricts the terminator to SP, causing any other non-token byte to error."
+
+[tasks.injection]
+kind = "patch"
+files = ["src/lib.rs"]
+locations = [{ file = "src/lib.rs" }]
 patch = "patches/invalid_token_delim_498de3f_1.patch"
-source_commit = "498de3fa707a4889395850e88e8260261258bbd2"
-witnesses = [
-    "witness_request_method_is_valid_case_cr_delim",
-]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
-files = ["src/lib.rs"]
 
-[[variant]]
-name = "header_value_htab_59a9fd1_1"
-property = "RequestHeaderValuePreserves"
-injection = "patch"
+[tasks.bug]
+short_name = "invalid_token_delim"
+invariant = "Only `SP` terminates the method token. A bare `\\r` (or `\\n`) after the method is not a legal delimiter and must error."
+how_triggered = """
+The buggy `parse_token` loop ends on SP **or** `\\r`/`\\n`, so `"GET\\r"` parses as method `"GET"` with a successful completion where the fixed parser returns `Err(Token)`.
+"""
+
+[[tasks.tasks]]
+property = "RequestMethodIsValid"
+witnesses = [
+  { test_fn = "witness_request_method_is_valid_case_cr_delim" },
+]
+
+[[tasks]]
+mutations = ["header_value_htab_59a9fd1_1"]
+
+[tasks.source]
+repo = "https://github.com/seanmonstar/httparse"
+commits = ["59a9fd11b3023581055b4997ff21829e03e909a2"]
+commit_subjects = ["allow htabs in header values"]
+summary = "`HEADER_VALUE_MAP` omitted HTAB (`0x09`), so header values containing tabs — explicitly permitted by RFC 7230 — were rejected as invalid. The fix adds HTAB to the allowed set alongside `0x20..=0x7E` and `0x80..`."
+
+[tasks.injection]
+kind = "patch"
+files = ["src/lib.rs"]
+locations = [{ file = "src/lib.rs" }]
 patch = "patches/header_value_htab_59a9fd1_1.patch"
-source_commit = "59a9fd11b3023581055b4997ff21829e03e909a2"
-witnesses = [
-    "witness_request_header_value_preserves_case_htab",
-]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
-files = ["src/lib.rs"]
 
-[[variant]]
-name = "backslash_in_uri_1a791f4_1"
-property = "RequestPathPreserves"
-injection = "patch"
-patch = "patches/backslash_in_uri_1a791f4_1.patch"
-source_commit = "1a791f4eee2dbb4e51f5211195a6f14da9aa5c12"
+[tasks.bug]
+short_name = "header_value_htab"
+invariant = "Header values made of valid value octets — including HTAB (`0x09`) — must parse, and the parsed bytes must equal the input bytes."
+how_triggered = "The buggy `HEADER_VALUE_MAP` drops HTAB from the allowed set (range shrinks from `b'\\t' | 0x20..=0x7E | 0x80..` to `0x20..=0x7E | 0x80..`), so any header value containing `\\t` fails to parse."
+
+[[tasks.tasks]]
+property = "RequestHeaderValuePreserves"
 witnesses = [
-    "witness_request_path_preserves_case_backslash",
+  { test_fn = "witness_request_header_value_preserves_case_htab" },
 ]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+
+[[tasks]]
+mutations = ["backslash_in_uri_1a791f4_1"]
+
+[tasks.source]
+repo = "https://github.com/seanmonstar/httparse"
+commits = ["1a791f4eee2dbb4e51f5211195a6f14da9aa5c12"]
+commit_subjects = ["Fix parsing backslashes in request-targets (#57)"]
+summary = "`is_uri_token` rejected `\\` even though RFC 3986 permits it in paths (and web clients routinely emit it). The fix removes the backslash exclusion from both the scalar check and the SIMD fast paths so backslash-bearing request targets round-trip through the parser."
+
+[tasks.injection]
+kind = "patch"
 files = ["src/lib.rs", "src/simd/swar.rs", "src/simd/neon.rs", "src/simd/sse42.rs", "src/simd/avx2.rs"]
+locations = [{ file = "src/lib.rs" }]
+patch = "patches/backslash_in_uri_1a791f4_1.patch"
 
-[[variant]]
-name = "response_no_reason_c0631f2_1"
-property = "ResponseHeaderNamesAreTokens"
-injection = "patch"
-patch = "patches/response_no_reason_c0631f2_1.patch"
-source_commit = "c0631f26e86157a8110a202c112b0ea7a051025b"
+[tasks.bug]
+short_name = "backslash_in_uri"
+invariant = "A path built from valid URI bytes (`!`..`~` or `0x80..`) must parse, and the parsed path bytes must equal the input bytes."
+how_triggered = "The buggy `is_uri_token` adds `&& b != b'\\\\'` to the URI-token check, so any path containing `\\` fails the scalar check. The SIMD fast paths are also redirected: SSE4.2/AVX2/NEON `match_uri_vectored` now forward to the SWAR fallback, and SWAR itself skips its block-wise fast path and walks byte-by-byte via `is_uri_token` so the backslash rejection actually fires."
+
+[[tasks.tasks]]
+property = "RequestPathPreserves"
 witnesses = [
-    "witness_response_header_names_are_tokens_case_bare_lf",
+  { test_fn = "witness_request_path_preserves_case_backslash" },
 ]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+
+[[tasks]]
+mutations = ["response_no_reason_c0631f2_1"]
+
+[tasks.source]
+repo = "https://github.com/seanmonstar/httparse"
+commits = ["c0631f26e86157a8110a202c112b0ea7a051025b"]
+commit_subjects = ["Fix parsing responses that have no reason phrase followed by no CRs (#96)"]
+summary = "When the status line ended in bare LF with no reason phrase, `Response::parse` set `reason = Some(\"\")` without advancing the byte-slice cursor, so the next header-name slice started inside the status-line digits (producing names like `\"200\\nContent-type\"`). The fix calls `bytes.slice()` to snap the cursor before parsing headers."
+
+[tasks.injection]
+kind = "patch"
 files = ["src/lib.rs"]
+locations = [{ file = "src/lib.rs" }]
+patch = "patches/response_no_reason_c0631f2_1.patch"
+
+[tasks.bug]
+short_name = "response_no_reason"
+invariant = "When a response parses successfully, every header name must be a non-empty valid HTTP token (no digits at start, no SP/CR/LF, no colons)."
+how_triggered = """
+When the status line ends in bare `\\n` (no reason phrase), the buggy branch sets `self.reason = Some("")` without calling `bytes.slice()`. The slice-start pointer stays inside the status-line digits, so the next header-name slice begins there — producing a header name like `"200\\nContent-type"`, which is not a valid token.
+"""
+
+[[tasks.tasks]]
+property = "ResponseHeaderNamesAreTokens"
+witnesses = [
+  { test_fn = "witness_response_header_names_are_tokens_case_bare_lf" },
+]
