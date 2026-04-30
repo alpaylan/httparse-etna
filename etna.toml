@@ -1,5 +1,6 @@
 name = "httparse"
 language = "rust"
+strategies = ["proptest", "quickcheck", "crabcheck", "hegel"]
 crate = "httparse"
 base_commit = "7d7da9d441de9af10639b4835fc3ec6d643c7903"
 
