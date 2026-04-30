@@ -20,8 +20,8 @@ std = []
 # ETNA framework dependencies — linked by src/bin/etna.rs.
 proptest = "1.11.0"
 # The forked quickcheck with the `etna` feature is required by the runner.
-quickcheck_etna = { path = "/Users/akeles/Programming/projects/PbtBenchmark/quickcheck", package = "quickcheck", features = ["etna"] }
-crabcheck = { path = "/Users/akeles/Programming/projects/PbtBenchmark/crabcheck" }
+quickcheck_etna = { git = "https://github.com/alpaylan/quickcheck.git", branch = "master", package = "quickcheck", features = ["etna"] }
+crabcheck = { git = "https://github.com/alpaylan/crabcheck.git", branch = "main" }
 hegeltest = "0.3.7"
 rand = "0.9"
 
