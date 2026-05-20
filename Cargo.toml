@@ -27,6 +27,7 @@ rand = "0.9"
 
 [dev-dependencies]
 criterion = { version = "0.3.5", features = ["html_reports"] }
+serde_json = "1.0"
 
 [lib]
 bench = false
@@ -38,6 +39,10 @@ harness = false
 [[bin]]
 name = "etna"
 path = "src/bin/etna.rs"
+
+[[bin]]
+name = "etna-faultloc"
+path = "src/bin/etna-faultloc.rs"
 
 [profile.bench]
 lto = true
